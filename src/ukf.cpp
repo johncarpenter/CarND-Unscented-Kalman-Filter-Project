@@ -19,12 +19,19 @@ UKF::UKF() {
 
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
+  //initial state covariance matrix
+  P_ << 0.2, 0, 0, 0, 0,
+        0, 0.2, 0, 0, 0,
+        0, 0, 0.2, 0, 0,
+        0, 0, 0, 0.3, 0,
+        0, 0, 0, 0, 0.3;
+
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.8; // 0.2?
+  std_a_ = 0.8;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.6; // 0.2?
+  std_yawdd_ = 0.6;
 
   // Laser measurement noise standard deviation position1 in m
   std_laspx_ = 0.15;
@@ -41,10 +48,13 @@ UKF::UKF() {
   // Radar measurement noise standard deviation radius change in m/s
   std_radrd_ = 0.3;
 
+  // Is initialized with starting position
   is_initialized_ = false;
 
+  // delta t between updates
   time_us_ = 0;
 
+  // CTRV dimensions
   n_x_ = 5;
 
   //set augmented dimension
@@ -67,14 +77,6 @@ UKF::UKF() {
 
   NIS_radar_ = 0.0;
   NIS_laser_ = 0.0;
-
-  //initial state covariance matrix
-  P_ << 0.2, 0, 0, 0, 0,
-        0, 0.2, 0, 0, 0,
-        0, 0, 0.2, 0, 0,
-        0, 0, 0, 0.3, 0,
-        0, 0, 0, 0, 0.3;
-
 
 }
 
@@ -145,7 +147,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
   //compute the time elapsed between the current and previous measurements
  float delta_t = (meas_package.timestamp_ - time_us_) / 1000000.0;	//dt - expressed in seconds
 
-  Prediction(delta_t);
+ Prediction(delta_t);
 
  if (meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_) {
 
@@ -166,7 +168,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
  * measurement and this one.
  */
 void UKF::Prediction(double delta_t) {
-  // 1.Generate the Sigma Points @todo tools
+  // 1.Generate the Sigma Points
   //create augmented mean vector
   VectorXd x_aug = VectorXd(7);
 
