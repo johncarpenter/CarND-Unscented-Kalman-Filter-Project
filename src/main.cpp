@@ -4,9 +4,11 @@
 #include <vector>
 #include "ukf.h"
 #include "measurement_package.h"
+#include "ground_truth_package.h"
 #include <fstream>
 #include <sstream>
 #include <stdlib.h>
+#include "tools.h"
 
 using namespace std;
 using Eigen::MatrixXd;
@@ -66,6 +68,7 @@ int main(int argc, char* argv[]) {
    **********************************************/
 
   vector<MeasurementPackage> measurement_pack_list;
+  vector<GroundTruthPackage> gt_pack_list;
   string line;
 
   // prep the measurement packages (each line represents a measurement at a
@@ -73,6 +76,7 @@ int main(int argc, char* argv[]) {
   while (getline(in_file_, line)) {
     string sensor_type;
     MeasurementPackage meas_package;
+    GroundTruthPackage gt_package;
     istringstream iss(line);
     long timestamp;
 
@@ -110,7 +114,25 @@ int main(int argc, char* argv[]) {
       meas_package.timestamp_ = timestamp;
       measurement_pack_list.push_back(meas_package);
     }
+
+    // read ground truth data to compare later
+    float x_gt;
+    float y_gt;
+    float vx_gt;
+    float vy_gt;
+    iss >> x_gt;
+    iss >> y_gt;
+    iss >> vx_gt;
+    iss >> vy_gt;
+    gt_package.gt_values_ = VectorXd(4);
+    gt_package.gt_values_ << x_gt, y_gt, vx_gt, vy_gt;
+    gt_pack_list.push_back(gt_package);
   }
+
+  // used to compute the RMSE later
+  vector<VectorXd> estimations;
+  vector<VectorXd> ground_truth;
+
 
   // Create a UKF instance
   UKF ukf;
@@ -147,8 +169,38 @@ int main(int argc, char* argv[]) {
       out_file_ << ro * sin(phi) << "\t"; // p2_meas
     }
 
+    // output the ground truth packages
+    out_file_ << gt_pack_list[k].gt_values_(0) << "\t";
+    out_file_ << gt_pack_list[k].gt_values_(1) << "\t";
+    out_file_ << gt_pack_list[k].gt_values_(2) << "\t";
+    out_file_ << gt_pack_list[k].gt_values_(3) << "\t";
+
+    out_file_ << ukf.NIS_radar_ << "\t";
+    out_file_ << ukf.NIS_laser_ ;
+
+
     out_file_ << "\n";
+
+    //output indirect vx,xy estimation
+    double v  = ukf.x_(2);
+    double yaw_angle = ukf.x_(3);
+
+    double vx = cos(yaw_angle)*v;
+    double vy = sin(yaw_angle)*v;
+
+    VectorXd estimation_item(4);
+		estimation_item << ukf.x_(0), ukf.x_(1), vx, vy;
+		VectorXd ground_truth_item(4);
+
+		ground_truth_item << gt_pack_list[k].gt_values_;
+		estimations.push_back(estimation_item);
+		ground_truth.push_back(ground_truth_item);
   }
+
+  // compute the accuracy (RMSE)
+  Tools tools;
+  cout << "Accuracy - RMSE:" << endl << tools.CalculateRMSE(estimations, ground_truth) << endl;
+
 
   // close files
   if (out_file_.is_open()) {
